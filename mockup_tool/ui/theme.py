@@ -192,7 +192,13 @@ footer { display: none !important; }
 
 /* ---------- thanh kết quả, copy, trạng thái duyệt ---------- */
 .result-bar { align-items: center !important; }
-#copy-btn.copied { background: #059669 !important; border-color: #059669 !important; }
+button.copied { background: #059669 !important; border-color: #059669 !important; color: #fff !important; }
+.sub-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  font-weight: 600; font-size: 13.5px; margin-top: 6px; padding-top: 10px;
+  border-top: 1px solid var(--border-color-primary); }
+.sub-head.flush { border-top: 0; padding-top: 0; }
+.hint p, .hint .prose { font-size: 12.5px !important; color: var(--body-text-color-subdued); }
+.sub-head span { font-weight: 400; font-size: 12px; color: var(--body-text-color-subdued); }
 .status-ok { font-size: 13px; padding: 8px 12px; border-radius: 8px; color: #065f46; background: #ecfdf5;
   border: 1px solid #a7f3d0; }
 .dark .status-ok { color: #6ee7b7; background: #022c22; border-color: #065f46; }

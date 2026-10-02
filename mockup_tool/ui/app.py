@@ -36,6 +36,36 @@ JS_COPY_PROMPT = """(text) => {
     setTimeout(() => { btn.textContent = old; btn.classList.remove('copied'); }, 1600);
   });
 }"""
+# Sinh ảnh bằng tài khoản ChatGPT/Gemini của chính người dùng: không có API chính thức nào
+# cho web app bên thứ ba dùng gói Plus/Pro/AI Pro để sinh ảnh, nên chuyển prompt sang trang
+# chat của họ. Luôn copy trước (trang mở ra làm mất focus, clipboard sẽ bị từ chối).
+IMAGE_REQUEST = "Create one image from this prompt, following it exactly:\n\n"
+CHATGPT_URL = "https://chatgpt.com/"
+GEMINI_URL = "https://gemini.google.com/app"
+
+
+def _js_open_chat(btn_id: str, url: str, prefill: bool, done: str) -> str:
+    """JS cho nút mở trang chat. prefill: điền sẵn prompt qua ?q= (ChatGPT hỗ trợ, Gemini không)."""
+    return f"""(text) => {{
+  if (!text || !text.trim()) return;
+  const msg = {json.dumps(IMAGE_REQUEST)} + text.trim();
+  let url = {json.dumps(url)};
+  const q = url + '?q=' + encodeURIComponent(msg);
+  if ({json.dumps(prefill)} && q.length <= 8000) url = q;
+  const copied = navigator.clipboard ? navigator.clipboard.writeText(msg) : Promise.reject();
+  window.open(url, '_blank', 'noopener');
+  const btn = document.querySelector('#{btn_id}');
+  copied.catch(() => {{}}).finally(() => {{
+    if (!btn) return;
+    const old = btn.textContent; btn.textContent = {json.dumps(done)}; btn.classList.add('copied');
+    setTimeout(() => {{ btn.textContent = old; btn.classList.remove('copied'); }}, 2500);
+  }});
+}}"""
+
+
+JS_OPEN_CHATGPT = _js_open_chat("chatgpt-btn", CHATGPT_URL, True, "Đã mở ChatGPT ✓")
+JS_OPEN_GEMINI = _js_open_chat("gemini-btn", GEMINI_URL, False, "Đã copy · Ctrl+V vào Gemini")
+
 # Ctrl/⌘ + Enter ở bất cứ đâu trong tab Tạo prompt = bấm Tạo prompt.
 HEAD = """<script>
 document.addEventListener('keydown', (e) => {
@@ -286,15 +316,27 @@ def build_app(service: MockupService, settings: Settings) -> gr.Blocks:
                                                               show_label=False)
                                         rebuild_btn = gr.Button("Dựng lại prompt từ thiết kế", size="sm")
                                     with gr.Tab("Sinh ảnh"):
-                                        gr.Markdown("Tuỳ chọn. Hai model nhận **cùng một prompt** ở tab Prompt — "
-                                                    "sinh lần lượt để so sánh, mỗi ảnh ghi tên model. Không gửi ảnh "
-                                                    "ý tưởng (tránh sao chép); ảnh nền đã lưu/mới được gửi kèm.",
+                                        gr.HTML('<div class="sub-head flush">Bằng tài khoản ChatGPT / Gemini của bạn'
+                                                '<span>không cần key · ảnh nằm bên đó</span></div>')
+                                        with gr.Row(equal_height=True, elem_classes="image-row"):
+                                            chatgpt_btn = gr.Button("Mở trong ChatGPT ↗", size="sm",
+                                                                    elem_id="chatgpt-btn", min_width=160)
+                                            gemini_btn = gr.Button("Mở trong Gemini ↗", size="sm",
+                                                                   elem_id="gemini-btn", min_width=160)
+                                        gr.Markdown("Dùng tài khoản đang đăng nhập trên trình duyệt. ChatGPT: prompt "
+                                                    "điền sẵn. Gemini: prompt đã được copy — bấm **Ctrl+V** rồi Enter. "
+                                                    "Nếu dùng ảnh nền đã lưu/mới, đính kèm ảnh đó vào khung chat.",
                                                     elem_classes="hint")
+                                        gr.HTML('<div class="sub-head">Ngay trong tool'
+                                                '<span>API key trên server · ảnh lưu lại, so sánh được</span></div>')
                                         with gr.Row(equal_height=True, elem_classes="image-row"):
                                             image_engine = gr.Radio(engine_choices, value=GEMINI, show_label=False,
                                                                     container=False, scale=3, min_width=260)
                                             image_btn = gr.Button("Sinh ảnh", variant="primary", size="sm",
                                                                   scale=1, min_width=140)
+                                        gr.Markdown("Hai model nhận **cùng một prompt**, mỗi ảnh ghi tên model. "
+                                                    "Không gửi ảnh ý tưởng (tránh sao chép); ảnh nền đã lưu/mới "
+                                                    "được gửi kèm.", elem_classes="hint")
                                         image_gallery = gr.Gallery(show_label=False, columns=2, height=440,
                                                                    buttons=["download", "fullscreen"])
                                 with gr.Row(equal_height=True, elem_classes="approve-row"):
@@ -577,6 +619,8 @@ def build_app(service: MockupService, settings: Settings) -> gr.Blocks:
         _always(generate, _unlock("Tạo prompt"), None, generate_btn, js=JS_SCROLL_RESULT)
 
         copy_btn.click(None, prompt_box, None, js=JS_COPY_PROMPT)
+        chatgpt_btn.click(None, prompt_box, None, js=JS_OPEN_CHATGPT)
+        gemini_btn.click(None, prompt_box, None, js=JS_OPEN_GEMINI)
         prompt_box.input(on_prompt_edit, None, [approve_btn, approve_status], queue=False)
         rebuild = rebuild_btn.click(_lock("Đang dựng lại…"), None, rebuild_btn, queue=False).then(
             on_rebuild, [request_state, design_code], [result_meta, prompt_box, design_code, approve_btn,

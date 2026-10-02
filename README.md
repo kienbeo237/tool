@@ -16,9 +16,18 @@ Mở http://127.0.0.1:7860. Tool không có đăng nhập — ai mở được U
 
 ## Sinh ảnh: Gemini hoặc ChatGPT
 
-Tab *Kết quả → Sinh ảnh* có lựa chọn engine. Chỉ phần **sinh ảnh** đổi theo engine —
-prompt vẫn do Gemini dựng, nên hai bên nhận đúng một prompt và so sánh được. Mỗi ảnh ghi
-tên model; lựa chọn được nhớ trên trình duyệt. Không tự chuyển engine khi một bên lỗi.
+Tab *Kết quả → Sinh ảnh* có hai cách, cùng dùng prompt đang hiện (kể cả chỗ đã sửa tay):
+
+- **Bằng tài khoản ChatGPT / Gemini của người dùng** — nút *Mở trong ChatGPT* (`chatgpt.com/?q=`,
+  prompt điền sẵn) và *Mở trong Gemini* (prompt được copy, người dùng Ctrl+V). Không cần key; ảnh
+  nằm bên ChatGPT/Gemini, không lưu vào tool. Lý do không "đăng nhập bằng ChatGPT/Gemini" ngay trong
+  tool: chưa có API chính thức nào cho web app bên thứ ba dùng gói Plus/Pro/AI Pro để **sinh ảnh**
+  (Sign in with ChatGPT: app tự host phải xin duyệt, bản preview chưa hỗ trợ sinh ảnh; Google cấm
+  dùng OAuth của Gemini CLI cho app khác).
+- **Ngay trong tool (API key trên server)** — chọn engine Gemini hoặc ChatGPT. Dùng cho làm lô và khi
+  cần lưu ảnh. Chỉ phần **sinh ảnh** đổi theo engine — prompt vẫn do Gemini dựng, nên hai bên nhận
+  đúng một prompt và so sánh được. Mỗi ảnh ghi tên model; lựa chọn được nhớ trên trình duyệt.
+  Không tự chuyển engine khi một bên lỗi.
 
 | Biến `.env` | Mặc định | Ghi chú |
 |---|---|---|
