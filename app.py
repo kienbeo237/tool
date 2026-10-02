@@ -10,7 +10,7 @@ from mockup_tool.engine.gemini_client import GeminiClient, MockGeminiClient
 from mockup_tool.engine.service import MockupService
 from mockup_tool.storage.db import make_session_factory
 from mockup_tool.storage.files import FileStore
-from mockup_tool.ui.app import build_app
+from mockup_tool.ui.app import HEAD, build_app
 from mockup_tool.ui.theme import CSS, THEME
 
 
@@ -35,6 +35,7 @@ def main() -> None:
         max_file_size="20mb",
         theme=THEME,
         css=CSS,
+        head=HEAD,
         show_error=True,
         footer_links=[],
     )

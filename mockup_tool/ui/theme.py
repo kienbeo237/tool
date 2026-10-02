@@ -72,6 +72,15 @@ THEME = gr.themes.Base(
     button_border_width="1px",
     button_primary_border_color="*primary_600",
     button_primary_border_color_hover="*primary_700",
+    # Nút nguy hiểm (variant="stop"): đỏ đặc, không nhầm với nút thường.
+    button_cancel_background_fill="#dc2626",
+    button_cancel_background_fill_hover="#b91c1c",
+    button_cancel_background_fill_dark="#b91c1c",
+    button_cancel_background_fill_hover_dark="#991b1b",
+    button_cancel_border_color="#dc2626",
+    button_cancel_border_color_dark="#b91c1c",
+    button_cancel_text_color="white",
+    button_cancel_text_color_dark="white",
     button_large_radius="*radius_md",
     button_large_text_weight="600",
     layout_gap="14px",
@@ -153,8 +162,53 @@ footer { display: none !important; }
 /* Nút cạnh ô nhập có nhãn: căn đáy thẳng với ô nhập. */
 .bottom-row { align-items: flex-end !important; }
 
+/* ---------- khung tải ảnh: Gradio không có tiếng Việt — thay chữ bằng CSS ---------- */
+.vi-upload [data-testid="upload-text"] { font-size: 0 !important; gap: 6px; }
+.vi-upload [data-testid="upload-text"] .or { display: none !important; }
+.vi-upload [data-testid="upload-text"]::after { content: "Kéo thả ảnh vào đây hoặc bấm để chọn";
+  font-size: 13.5px; color: var(--body-text-color-subdued); }
+.hint { font-size: 12.5px; color: var(--body-text-color-subdued); margin-top: -4px; }
+
+/* ---------- nút tạo prompt: gợi ý phím tắt ---------- */
+#generate-btn::after { content: "Ctrl + Enter"; margin-left: 10px; font-size: 11px; font-weight: 500;
+  opacity: .7; padding: 1px 6px; border: 1px solid rgba(255,255,255,.45); border-radius: 4px; }
+#generate-btn:disabled { opacity: .75; cursor: progress; }
+#generate-btn:disabled::after { display: none; }
+@media (hover: none) { #generate-btn::after, .guide .kbd-hint { display: none; } }
+
+/* ---------- hướng dẫn khi chưa có kết quả ---------- */
+.guide { padding: 18px 4px 10px; }
+.guide-t { font-size: 14px; color: var(--body-text-color-subdued); margin-bottom: 12px; }
+.guide ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: g; }
+.guide li { counter-increment: g; display: flex; gap: 10px; align-items: baseline; font-size: 14px;
+  color: var(--body-text-color); }
+.guide li::before { content: counter(g); flex: none; width: 22px; height: 22px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;
+  color: var(--primary-700); background: var(--primary-100); }
+.dark .guide li::before { color: var(--primary-200); background: var(--primary-900); }
+.guide li span { color: var(--body-text-color-subdued); font-size: 13px; }
+.guide kbd { font: 600 11.5px var(--font-mono); padding: 1px 6px; border-radius: 4px;
+  border: 1px solid var(--border-color-primary); background: var(--background-fill-secondary); }
+
+/* ---------- thanh kết quả, copy, trạng thái duyệt ---------- */
+.result-bar { align-items: center !important; }
+#copy-btn.copied { background: #059669 !important; border-color: #059669 !important; }
+.status-ok { font-size: 13px; padding: 8px 12px; border-radius: 8px; color: #065f46; background: #ecfdf5;
+  border: 1px solid #a7f3d0; }
+.dark .status-ok { color: #6ee7b7; background: #022c22; border-color: #065f46; }
+
+/* ---------- xác nhận thao tác xoá ---------- */
+.confirm-row { align-items: center !important; padding: 8px 10px !important; border-radius: 8px;
+  background: #fef2f2; border: 1px solid #fecaca; }
+.dark .confirm-row { background: #2a0f0f; border-color: #7f1d1d; }
+.confirm-text { font-size: 13px; color: #991b1b; }
+.dark .confirm-text { color: #fca5a5; }
+
 /* ---------- bảng ---------- */
 .tbl table { font-size: 13px; }
+/* Bảng mặc định dùng font mono → chữ dài bị ngắt giữa từ. */
+.tbl, .tbl * { font-family: var(--font) !important; }
+.tbl .body-cell, .tbl td { word-break: normal !important; overflow-wrap: anywhere; }
 """
 
 
@@ -190,3 +244,16 @@ def meta_html(chips: list[str], warnings: list[str] | None = None) -> str:
 
 def empty_html(text: str) -> str:
     return f'<div class="empty">{html.escape(text)}</div>'
+
+
+def guide_html() -> str:
+    return ('<div class="guide"><div class="guide-t">Chưa có prompt. Ba bước:</div><ol>'
+            '<li><div>Chọn sản phẩm, vị trí thêu và màu áo</div></li>'
+            '<li><div>Tải 1–2 ảnh ý tưởng <span>· bối cảnh, màu chỉ, ghi chú là tuỳ chọn</span></div></li>'
+            '<li><div>Bấm <b>Tạo prompt</b> <span class="kbd-hint">hoặc <kbd>Ctrl</kbd> + <kbd>Enter</kbd></span></div></li>'
+            '</ol></div>')
+
+
+def status_html(text: str) -> str:
+    """Dòng xác nhận thành công (đã escape phía gọi nếu cần)."""
+    return f'<div class="status-ok">✓ {text}</div>'
