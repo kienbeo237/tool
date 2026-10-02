@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+data/
+eval_out/
+Untitled_v2.md

@@ -1,0 +1,21 @@
+# Chạy TRÊN MÁY CHỦ trong ~/mockup-tool (deploy.sh chép lên). IMAGE, IMAGE_TAG,
+# APP_PASSWORD, GEMINI_API_KEY... đọc từ .env cạnh file này.
+name: mockup-tool
+
+services:
+  app:
+    image: ${IMAGE:?Thiếu IMAGE trong .env}:${IMAGE_TAG:?Thiếu IMAGE_TAG trong .env}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: "7860"
+      UPLOAD_DIR: /app/data
+    # Chỉ nginx của máy chủ gọi vào; không mở cổng ra Internet.
+    ports:
+      - "127.0.0.1:${HOST_PORT:-7860}:7860"
+    volumes:
+      - ./data:/app/data
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

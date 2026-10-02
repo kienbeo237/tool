@@ -1,0 +1,8 @@
+gradio>=6.29,<7
+google-genai>=2.27,<3
+pydantic>=2.13,<3
+sqlalchemy>=2.1,<3
+pillow>=12
+python-dotenv>=1
+# Postgres (tuỳ chọn, chỉ khi DATABASE_URL trỏ tới Postgres):
+# psycopg[binary]>=3

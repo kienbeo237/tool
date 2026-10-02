@@ -1,0 +1,112 @@
+name: Deploy
+
+# Chỉ deploy commit đã qua CI: chạy khi workflow CI trên main kết thúc XANH.
+# Chạy tay (workflow_dispatch) để deploy lại.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Hai lần deploy chồng nhau có thể quay về nhầm bản. Xếp hàng, không huỷ.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  build:
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ env.SHA }}' }
+
+      # GHCR bắt buộc tên image chữ thường.
+      - name: Tên image
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ env.SHA }}
+            ${{ env.IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SHA }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://${{ vars.DEPLOY_DOMAIN }}
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || 'mockup-tool' }}
+      DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: '${{ env.SHA }}'
+          sparse-checkout: deploy
+
+      - name: Kiểm cấu hình
+        run: |
+          for v in DEPLOY_HOST DEPLOY_USER DOMAIN; do
+            [ -n "${!v}" ] || { echo "::error::Thiếu $v (xem README, mục Deploy)"; exit 1; }
+          done
+
+      - name: Cấu hình SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          # Ghim khoá máy chủ: không có nó thì SSH tin bất kỳ máy nào trả lời IP này.
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat >> ~/.ssh/config <<EOF
+          Host deploy-target
+            HostName $DEPLOY_HOST
+            User $DEPLOY_USER
+            IdentityFile ~/.ssh/id_deploy
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+          EOF
+
+      - name: Chép tệp deploy lên máy chủ
+        run: |
+          ssh deploy-target "mkdir -p '$DEPLOY_PATH'"
+          scp -q deploy/docker-compose.yml deploy/deploy.sh deploy/server-setup.sh deploy/nginx.conf "deploy-target:$DEPLOY_PATH/"
+          ssh deploy-target "chmod +x '$DEPLOY_PATH/deploy.sh' '$DEPLOY_PATH/server-setup.sh'"
+
+      - name: Deploy
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Token đi qua stdin, không nằm trong dòng lệnh bên máy chủ.
+          printf '%s\n' "$GHCR_TOKEN" | ssh deploy-target \
+            "cd '$DEPLOY_PATH' && IMAGE_TAG='$SHA' IMAGE='ghcr.io/${GITHUB_REPOSITORY,,}' DOMAIN='$DOMAIN' GHCR_USER='$GITHUB_ACTOR' ./deploy.sh"
