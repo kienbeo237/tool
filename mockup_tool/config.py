@@ -14,7 +14,6 @@ class Settings:
     gemini_api_key: str
     database_url: str
     upload_dir: Path
-    app_password: str
     text_model: str
     image_model: str
     mock_gemini: bool
@@ -33,7 +32,6 @@ def load_settings() -> Settings:
         gemini_api_key=api_key,
         database_url=os.getenv("DATABASE_URL") or f"sqlite:///{(upload_dir / 'mockup.db').as_posix()}",
         upload_dir=upload_dir,
-        app_password=os.getenv("APP_PASSWORD", ""),
         text_model=os.getenv("TEXT_MODEL", "gemini-2.5-flash"),
         image_model=os.getenv("IMAGE_MODEL", "gemini-2.5-flash-image"),
         # Không có key thì tự chạy chế độ giả lập để dựng/thử giao diện được.

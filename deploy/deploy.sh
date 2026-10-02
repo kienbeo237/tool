@@ -26,15 +26,12 @@ if [[ ! -f .env ]]; then
   umask 077
   cat > .env <<EOF
 # Sinh tự động bởi deploy.sh lúc $(date -Iseconds). KHÔNG commit.
-# Mật khẩu chung để vào tool (tên đăng nhập gõ gì cũng được).
-APP_PASSWORD=$(openssl rand -hex 12)
 # Key Gemini (bật billing). Trống = chế độ giả lập. Sửa xong: docker compose up -d
 GEMINI_API_KEY=
 TEXT_MODEL=gemini-2.5-flash
 IMAGE_MODEL=gemini-2.5-flash-image
 EOF
-  # Không in mật khẩu: log Actions đọc được bởi mọi người xem được repo.
-  echo "::warning::Đã tạo $PWD/.env — APP_PASSWORD nằm trong file này; điền GEMINI_API_KEY để thoát chế độ giả lập"
+  echo "::warning::Đã tạo $PWD/.env — điền GEMINI_API_KEY để thoát chế độ giả lập"
 fi
 chmod 600 .env
 mkdir -p data

@@ -2,7 +2,6 @@
 
 import logging
 import os
-import sys
 
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
 
@@ -20,9 +19,6 @@ def main() -> None:
     settings = load_settings()
     log = logging.getLogger("mockup_tool")
 
-    if not settings.app_password and settings.host not in ("127.0.0.1", "localhost"):
-        sys.exit("APP_PASSWORD bắt buộc khi HOST không phải localhost.")
-
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
     client = (MockGeminiClient() if settings.mock_gemini
               else GeminiClient(settings.gemini_api_key, settings.text_model, settings.image_model))
@@ -35,8 +31,6 @@ def main() -> None:
     demo.launch(
         server_name=settings.host,
         server_port=settings.port,
-        auth=(lambda _user, password: password == settings.app_password) if settings.app_password else None,
-        auth_message="Nhập mật khẩu chung (tên đăng nhập gõ gì cũng được).",
         allowed_paths=[str(settings.upload_dir)],
         max_file_size="20mb",
         theme=THEME,

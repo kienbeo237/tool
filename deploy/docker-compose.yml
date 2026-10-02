@@ -1,5 +1,5 @@
 # Chạy TRÊN MÁY CHỦ trong ~/mockup-tool (deploy.sh chép lên). IMAGE, IMAGE_TAG,
-# APP_PASSWORD, GEMINI_API_KEY... đọc từ .env cạnh file này.
+# GEMINI_API_KEY... đọc từ .env cạnh file này.
 name: mockup-tool
 
 services:

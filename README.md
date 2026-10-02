@@ -12,7 +12,7 @@ cp .env.example .env        # bỏ trống GEMINI_API_KEY = chế độ giả l�
 .venv/Scripts/python -m pytest -q
 ```
 
-Mở http://127.0.0.1:7860. Không có `APP_PASSWORD` thì chỉ được chạy trên localhost.
+Mở http://127.0.0.1:7860. Tool không có đăng nhập — ai mở được URL là dùng được.
 
 ## Deploy (CI/CD)
 
@@ -31,7 +31,7 @@ Deploy lại bản bất kỳ: tab *Actions* → *Deploy* → *Run workflow*, ho
 
 Trên máy chủ (`~/mockup-tool`):
 
-- `.env` sinh tự động ở lần deploy đầu, **không bao giờ bị ghi đè**: `APP_PASSWORD` (mật khẩu vào tool),
+- `.env` sinh tự động ở lần deploy đầu, **không bao giờ bị ghi đè**:
   `GEMINI_API_KEY` (trống = chế độ giả lập). Sửa xong: `docker compose up -d`.
 - `data/` — DB SQLite + ảnh. `data/backups/`: bản sao trước mỗi deploy (giữ 5) và hằng đêm 03:15 (giữ 14).
   Bản sao vẫn nằm cùng máy — nên chép định kỳ ra ngoài.
