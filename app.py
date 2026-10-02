@@ -7,6 +7,7 @@ os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
 
 from mockup_tool.config import load_settings
 from mockup_tool.engine.gemini_client import GeminiClient, MockGeminiClient
+from mockup_tool.engine.image_engines import build_image_engines
 from mockup_tool.engine.service import MockupService
 from mockup_tool.storage.db import make_session_factory
 from mockup_tool.storage.files import FileStore
@@ -24,7 +25,10 @@ def main() -> None:
               else GeminiClient(settings.gemini_api_key, settings.text_model, settings.image_model))
     if settings.mock_gemini:
         log.warning("Chạy chế độ GIẢ LẬP (không có GEMINI_API_KEY hoặc MOCK_GEMINI=1).")
-    service = MockupService(make_session_factory(settings.database_url), FileStore(settings.upload_dir), client)
+    engines = build_image_engines(settings, client)
+    log.info("Engine sinh ảnh: %s", ", ".join(f"{e.label} [{e.model}]" for e in engines.values()))
+    service = MockupService(make_session_factory(settings.database_url), FileStore(settings.upload_dir), client,
+                            image_engines=engines)
 
     demo = build_app(service, settings)
     demo.queue(default_concurrency_limit=1, max_size=32)

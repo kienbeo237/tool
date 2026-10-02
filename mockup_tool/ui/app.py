@@ -10,6 +10,7 @@ import gradio as gr
 
 from mockup_tool.config import Settings
 from mockup_tool.engine.gemini_client import ModelError
+from mockup_tool.engine.image_engines import GEMINI
 from mockup_tool.engine.service import BatchItem, GenerateInput, MockupService, UserError
 from mockup_tool.ui.theme import (card_header, empty_html, guide_html, header_html, meta_html, status_html,
                                   swatch_css)
@@ -195,6 +196,9 @@ def build_app(service: MockupService, settings: Settings) -> gr.Blocks:
 
     init_info, init_block, init_help, init_text, init_json, init_history = rules_view(default_category)
 
+    engine_choices = [(e.label if e.model.startswith("mock") else f"{e.label} · {e.model}", e.key)
+                      for e in service.image_engines.values()]
+
     def names():
         """Mã → tên hiển thị cho bảng/chi tiết (DB lưu mã; người dùng đọc tên)."""
         _, rules = service.active_rules(default_category)
@@ -282,9 +286,15 @@ def build_app(service: MockupService, settings: Settings) -> gr.Blocks:
                                                               show_label=False)
                                         rebuild_btn = gr.Button("Dựng lại prompt từ thiết kế", size="sm")
                                     with gr.Tab("Sinh ảnh"):
-                                        gr.Markdown("Tuỳ chọn. Dùng đúng prompt ở tab Prompt; không gửi ảnh ý tưởng để "
-                                                    "tránh sao chép. Ảnh nền đã lưu/mới được gửi kèm làm tham chiếu.")
-                                        image_btn = gr.Button("Sinh ảnh", size="sm")
+                                        gr.Markdown("Tuỳ chọn. Hai model nhận **cùng một prompt** ở tab Prompt — "
+                                                    "sinh lần lượt để so sánh, mỗi ảnh ghi tên model. Không gửi ảnh "
+                                                    "ý tưởng (tránh sao chép); ảnh nền đã lưu/mới được gửi kèm.",
+                                                    elem_classes="hint")
+                                        with gr.Row(equal_height=True, elem_classes="image-row"):
+                                            image_engine = gr.Radio(engine_choices, value=GEMINI, show_label=False,
+                                                                    container=False, scale=3, min_width=260)
+                                            image_btn = gr.Button("Sinh ảnh", variant="primary", size="sm",
+                                                                  scale=1, min_width=140)
                                         image_gallery = gr.Gallery(show_label=False, columns=2, height=440,
                                                                    buttons=["download", "fullscreen"])
                                 with gr.Row(equal_height=True, elem_classes="approve-row"):
@@ -540,10 +550,10 @@ def build_app(service: MockupService, settings: Settings) -> gr.Blocks:
             return head + status + "\n\n" + "\n\n".join(blocks)
 
         @_guard
-        def on_image(request_id, prompt):
+        def on_image(request_id, prompt, engine):
             request_id = _need(request_id, "Chưa có request — bấm Tạo prompt trước")
-            service.generate_image(request_id, prompt or "")
-            return service.generation_paths(request_id)
+            service.generate_image(request_id, prompt or "", engine or GEMINI)
+            return service.generation_items(request_id)
 
         def save_prefs(prefs, ptype, place, aspect, preset):
             return {**(prefs or {}), **dict(zip(PREF_KEYS, (ptype, place, aspect, preset)))}
@@ -552,6 +562,8 @@ def build_app(service: MockupService, settings: Settings) -> gr.Blocks:
         bg_mode.change(on_bg_mode, bg_mode, [bg_preset, bg_saved, bg_custom])
         gr.on([product_type.input, placement.input, aspect_ratio.input, bg_preset.input], save_prefs,
               [prefs_state, product_type, placement, aspect_ratio, bg_preset], prefs_state, queue=False)
+        image_engine.input(lambda prefs, engine: {**(prefs or {}), "image_engine": engine},
+                           [prefs_state, image_engine], prefs_state, queue=False)
 
         generate = generate_btn.click(_lock("Đang tạo prompt…"), None, generate_btn, queue=False).then(
             on_generate,
@@ -580,7 +592,7 @@ def build_app(service: MockupService, settings: Settings) -> gr.Blocks:
             on_batch, [batch_source, batch_colors], [batch_md, batch_file], concurrency_limit=1)
         _always(batch, batch_ready, batch_colors, batch_btn)
         image = image_btn.click(_lock("Đang sinh ảnh…"), None, image_btn, queue=False).then(
-            on_image, [request_state, prompt_box], image_gallery, concurrency_limit=1)
+            on_image, [request_state, prompt_box, image_engine], image_gallery, concurrency_limit=1)
         _always(image, _unlock("Sinh ảnh"), None, image_btn)
 
         # ------------------------------------------------------------------ handlers: thư viện
@@ -788,8 +800,9 @@ def build_app(service: MockupService, settings: Settings) -> gr.Blocks:
         # ------------------------------------------------------------------ nạp lần đầu
 
         def on_load(prefs):
-            return catalog(default_category, prefs)
+            engine = _pick((prefs or {}).get("image_engine"), engine_choices, GEMINI)
+            return *catalog(default_category, prefs), engine
 
-        demo.load(on_load, prefs_state, catalog_outputs)
+        demo.load(on_load, prefs_state, [*catalog_outputs, image_engine])
 
     return demo

@@ -1,6 +1,6 @@
 # Mockup Prompt Tool
 
-Tool dựng prompt tiếng Anh bốn đoạn cho ảnh mockup áo thêu (Gradio + Gemini + SQLite).
+Tool dựng prompt tiếng Anh bốn đoạn cho ảnh mockup áo thêu (Gradio + Gemini + SQLite; sinh ảnh bằng Gemini hoặc ChatGPT).
 Thiết kế gốc: `Untitled_v2.md` (tài liệu của khách, không đưa vào repo).
 
 ## Chạy local
@@ -13,6 +13,21 @@ cp .env.example .env        # bỏ trống GEMINI_API_KEY = chế độ giả l�
 ```
 
 Mở http://127.0.0.1:7860. Tool không có đăng nhập — ai mở được URL là dùng được.
+
+## Sinh ảnh: Gemini hoặc ChatGPT
+
+Tab *Kết quả → Sinh ảnh* có lựa chọn engine. Chỉ phần **sinh ảnh** đổi theo engine —
+prompt vẫn do Gemini dựng, nên hai bên nhận đúng một prompt và so sánh được. Mỗi ảnh ghi
+tên model; lựa chọn được nhớ trên trình duyệt. Không tự chuyển engine khi một bên lỗi.
+
+| Biến `.env` | Mặc định | Ghi chú |
+|---|---|---|
+| `IMAGE_MODEL` | `gemini-2.5-flash-image` | engine Gemini, dùng chung `GEMINI_API_KEY` |
+| `OPENAI_API_KEY` | trống | trống: ChatGPT báo "chưa có key" (chế độ giả lập: ảnh giả) |
+| `OPENAI_IMAGE_MODEL` | `gpt-image-2` | `gpt-image-1*` cũng chạy: sinh khổ gần nhất rồi cắt giữa cho đúng tỷ lệ |
+| `OPENAI_IMAGE_QUALITY` | `high` | `low` / `medium` / `high` — high đẹp nhất, đắt và chậm nhất |
+
+Tổ chức OpenAI phải qua *Organization verification* mới gọi được model gpt-image.
 
 ## Deploy (CI/CD)
 
@@ -32,7 +47,8 @@ Deploy lại bản bất kỳ: tab *Actions* → *Deploy* → *Run workflow*, ho
 Trên máy chủ (`~/mockup-tool`):
 
 - `.env` sinh tự động ở lần deploy đầu, **không bao giờ bị ghi đè**:
-  `GEMINI_API_KEY` (trống = chế độ giả lập). Sửa xong: `docker compose up -d`.
+  `GEMINI_API_KEY` (trống = chế độ giả lập), `OPENAI_API_KEY` (sinh ảnh bằng ChatGPT).
+  Sửa xong: `docker compose up -d`. Khoá mới ở bản sau được tự thêm dòng trống, giá trị cũ giữ nguyên.
 - `data/` — DB SQLite + ảnh. `data/backups/`: bản sao trước mỗi deploy (giữ 5) và hằng đêm 03:15 (giữ 14).
   Bản sao vẫn nằm cùng máy — nên chép định kỳ ra ngoài.
 - Cài một lần (nginx + HTTPS + cron), đã chạy: `DOMAIN=mockup.51-79-255-102.sslip.io ./server-setup.sh`.
@@ -59,6 +75,7 @@ mockup_tool/
     schema.py          # JSON model trả về + kiểm tra ràng buộc
     context_builder.py # NƠI DUY NHẤT áp thứ tự ưu tiên (mục 6.2), hàm thuần
     gemini_client.py   # gọi Gemini (retry 429/5xx) + client giả lập
+    image_engines.py   # engine sinh ảnh chọn được: Gemini / ChatGPT (OpenAI gpt-image)
     service.py         # generate / batch / approve / thư viện / quy tắc
   storage/             # SQLAlchemy models, lưu ảnh theo SHA-256
   ui/app.py            # Gradio, chỉ gọi service

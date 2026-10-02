@@ -17,6 +17,7 @@ from mockup_tool.categories.base import BackgroundPreset, Category, CategoryRule
 from mockup_tool.categories.registry import CATEGORIES
 from mockup_tool.engine import context_builder as cb
 from mockup_tool.engine.gemini_client import InvalidOutput, ModelClient, ModelError, NoImageError, mime_for
+from mockup_tool.engine.image_engines import GEMINI, ImageEngine
 from mockup_tool.engine.schema import (
     Design,
     DesignOutput,
@@ -85,11 +86,13 @@ class _Background:
 
 class MockupService:
     def __init__(self, sessions: sessionmaker, files: FileStore, client: ModelClient,
-                 categories: dict[str, Category] | None = None):
+                 categories: dict[str, Category] | None = None,
+                 image_engines: dict[str, ImageEngine] | None = None):
         self.sessions = sessions
         self.files = files
         self.client = client
         self.categories = categories or CATEGORIES
+        self.image_engines = image_engines or {GEMINI: ImageEngine(GEMINI, "Gemini", client.image_model, client)}
 
     # ------------------------------------------------------------------ quy tắc
 
@@ -569,9 +572,15 @@ class MockupService:
 
     # ------------------------------------------------------------------ sinh ảnh (tuỳ chọn)
 
-    def generate_image(self, request_id: int, final_prompt: str = "") -> str:
+    def generate_image(self, request_id: int, final_prompt: str = "", engine: str = GEMINI) -> str:
         """Sinh ảnh từ ĐÚNG prompt đã dựng. Không gửi ảnh ý tưởng (sẽ kéo về sao chép);
         ảnh nền đã duyệt thì gửi kèm vì nó chỉ chi phối bối cảnh."""
+        chosen = self.image_engines.get(engine)
+        if chosen is None:
+            raise UserError(f"Không có engine sinh ảnh '{engine}'")
+        if chosen.client is None:
+            raise UserError(f"{chosen.label}: server chưa cấu hình {chosen.missing_key}. "
+                            "Thêm vào file .env rồi khởi động lại app.")
         with self.sessions() as s:
             req = self._request(s, request_id)
             prompt = final_prompt.strip() or req.prompt_text
@@ -586,7 +595,7 @@ class MockupService:
         data, mime, error = None, "image/png", None
         for _ in range(2):  # model trả text thay vì ảnh (safety/quota): thử lại đúng một lần
             try:
-                data, mime = self.client.generate_image(prompt, scene_bytes, scene_mime, aspect_ratio)
+                data, mime = chosen.client.generate_image(prompt, scene_bytes, scene_mime, aspect_ratio)
                 break
             except NoImageError as e:
                 error = e
@@ -595,12 +604,12 @@ class MockupService:
                 break
         if data is None:
             with self.sessions() as s:
-                s.add(Generation(request_id=request_id, model=self.client.image_model, status="error", error=str(error)))
+                s.add(Generation(request_id=request_id, model=chosen.model, status="error", error=str(error)))
                 s.commit()
             raise error or ModelError("Không sinh được ảnh")
 
         with self.sessions() as s:
-            gen = Generation(request_id=request_id, model=self.client.image_model, status="ok")
+            gen = Generation(request_id=request_id, model=chosen.model, status="ok")
             s.add(gen)
             s.flush()
             gen.image_path = self.files.save_generation(request_id, gen.id, data, mime)
@@ -608,10 +617,14 @@ class MockupService:
             return str(self.files.abs(gen.image_path))
 
     def generation_paths(self, request_id: int) -> list[str]:
+        return [path for path, _ in self.generation_items(request_id)]
+
+    def generation_items(self, request_id: int) -> list[tuple[str, str]]:
+        """(đường dẫn ảnh, model đã sinh) — để so sánh ảnh giữa các engine."""
         with self.sessions() as s:
             rows = s.scalars(select(Generation).where(Generation.request_id == request_id, Generation.status == "ok")
                              .order_by(Generation.id)).all()
-            return [str(self.files.abs(r.image_path)) for r in rows]
+            return [(str(self.files.abs(r.image_path)), r.model) for r in rows]
 
     # ------------------------------------------------------------------ tiện ích
 

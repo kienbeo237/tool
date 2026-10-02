@@ -36,6 +36,12 @@ fi
 chmod 600 .env
 mkdir -p data
 
+# Khoá thêm sau lần tạo .env đầu: chỉ thêm dòng còn thiếu, không đụng giá trị đã có.
+ensure_key() { grep -q "^$1=" .env || printf '%s=%s\n' "$1" "$2" >> .env; }
+ensure_key OPENAI_API_KEY ""
+ensure_key OPENAI_IMAGE_MODEL gpt-image-2
+ensure_key OPENAI_IMAGE_QUALITY high
+
 # Ghi/cập nhật một khoá không bí mật trong .env.
 upsert() {
   local key="$1" val="$2"

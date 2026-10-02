@@ -17,6 +17,9 @@ class Settings:
     text_model: str
     image_model: str
     mock_gemini: bool
+    openai_api_key: str
+    openai_image_model: str
+    openai_image_quality: str
     host: str
     port: int
 
@@ -36,6 +39,10 @@ def load_settings() -> Settings:
         image_model=os.getenv("IMAGE_MODEL", "gemini-2.5-flash-image"),
         # Không có key thì tự chạy chế độ giả lập để dựng/thử giao diện được.
         mock_gemini=_truthy(os.getenv("MOCK_GEMINI")) or not api_key,
+        openai_api_key=os.getenv("OPENAI_API_KEY", "").strip(),
+        openai_image_model=os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2"),
+        # low | medium | high | auto. high: đẹp nhất, đắt và chậm nhất.
+        openai_image_quality=os.getenv("OPENAI_IMAGE_QUALITY", "high"),
         host=os.getenv("HOST", "127.0.0.1"),
         port=int(os.getenv("PORT", "7860")),
     )

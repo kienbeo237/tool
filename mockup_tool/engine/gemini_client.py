@@ -28,6 +28,9 @@ log = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 _RETRYABLE = {429, 500, 502, 503, 504}
+# Gửi kèm ảnh nền đã duyệt: model chỉ được lấy bối cảnh, không lấy áo/hình thêu trong đó.
+SCENE_REFERENCE_NOTE = ("SCENE REFERENCE - recreate only this background setting and lighting; "
+                        "ignore any garment, artwork or text in it:")
 _MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
 
 
@@ -136,10 +139,7 @@ class GeminiClient:
 
         contents = []
         if scene_image:
-            contents.append(types.Part.from_text(
-                text="SCENE REFERENCE - recreate only this background setting and lighting; "
-                     "ignore any garment, artwork or text in it:"
-            ))
+            contents.append(types.Part.from_text(text=SCENE_REFERENCE_NOTE))
             contents.append(types.Part.from_bytes(data=scene_image, mime_type=scene_mime))
         contents.append(types.Part.from_text(text=prompt))
         response = self._call(
@@ -225,16 +225,21 @@ class MockGeminiClient:
         )
 
     def generate_image(self, prompt: str, scene_image: bytes | None, scene_mime: str, aspect_ratio: str) -> tuple[bytes, str]:
-        from PIL import Image, ImageDraw
-
         self.calls.append("image")
-        w, h = (int(x) for x in aspect_ratio.split(":"))
-        size = (1024, int(1024 * h / w)) if w >= h else (int(1024 * w / h), 1024)
-        img = Image.new("RGB", size, "#e9e2d4")
-        draw = ImageDraw.Draw(img)
-        draw.text((40, 40), "MOCK IMAGE (no GEMINI_API_KEY)", fill="#333333")
-        for i, line in enumerate(re.findall(r".{1,90}(?:\s|$)", prompt[:900])):
-            draw.text((40, 80 + i * 18), line.strip(), fill="#555555")
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        return buf.getvalue(), "image/png"
+        return mock_image(prompt, aspect_ratio, "MOCK IMAGE (no GEMINI_API_KEY)")
+
+
+def mock_image(prompt: str, aspect_ratio: str, title: str) -> tuple[bytes, str]:
+    """Ảnh PNG giả đúng tỷ lệ, in sẵn prompt — để thử giao diện khi chưa có key."""
+    from PIL import Image, ImageDraw
+
+    w, h = (int(x) for x in aspect_ratio.split(":"))
+    size = (1024, int(1024 * h / w)) if w >= h else (int(1024 * w / h), 1024)
+    img = Image.new("RGB", size, "#e9e2d4")
+    draw = ImageDraw.Draw(img)
+    draw.text((40, 40), title, fill="#333333")
+    for i, line in enumerate(re.findall(r".{1,90}(?:\s|$)", prompt[:900])):
+        draw.text((40, 80 + i * 18), line.strip(), fill="#555555")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue(), "image/png"
