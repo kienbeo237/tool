@@ -192,6 +192,52 @@ footer { display: none !important; }
 
 /* ---------- thanh kết quả, copy, trạng thái duyệt ---------- */
 .result-bar { align-items: center !important; }
+/* Gradio gắn nhãn "Error" trống lên MỌI ô đầu ra khi một sự kiện lỗi. Nội dung lỗi đã có ở
+   thông báo góc màn hình, nên ẩn nhãn này đi. */
+[data-testid="status-tracker"]:has(> .error) { display: none !important; }
+[data-testid="status-tracker"] > .error, [data-testid="status-tracker"] > .clear-status { display: none !important; }
+/* Gradio 6 gom thông báo theo loại và luôn lấy tên loại tiếng Anh làm tiêu đề (bỏ qua title=). */
+.toast-title { font-size: 0 !important; }
+.toast-title::before { font-size: var(--text-md); }
+.toast-title .toast-count { font-size: var(--text-sm); margin-left: 4px; }
+.toast-title.error::before { content: "Chưa thực hiện được"; }
+.toast-title.warning::before { content: "Lưu ý"; }
+.toast-title.info::before { content: "Thông báo"; }
+.toast-title.success::before { content: "Xong"; }
+.rules-intro p { margin: 0 0 8px; font-size: 13.5px; line-height: 1.55; }
+.rules-intro ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.6;
+  color: var(--body-text-color-subdued); }
+.ri-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.ri-grid > div { padding: 10px 12px; border: 1px solid var(--border-color-primary); border-radius: 10px; }
+.ri-grid p { margin: 6px 0 0; font-size: 12.5px; color: var(--body-text-color-subdued); }
+.bh-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.bh-instruction { background: #ede9fe; color: #5b21b6; }
+.bh-template { background: #e0f2fe; color: #075985; }
+.bh-default { background: #fef3c7; color: #92400e; }
+.bh-lock { background: #fee2e2; color: #991b1b; margin-left: 6px; }
+.dark .bh-instruction { background: #2e1065; color: #ddd6fe; }
+.dark .bh-template { background: #082f49; color: #bae6fd; }
+.dark .bh-default { background: #451a03; color: #fde68a; }
+.dark .bh-lock { background: #450a0a; color: #fecaca; }
+.block-help { font-size: 13px; line-height: 1.55; }
+.block-help .bh-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.block-help .bh-sub { font-size: 12px; color: var(--body-text-color-subdued); }
+.block-help p { margin: 4px 0; }
+.block-help .bh-note { font-size: 12.5px; color: var(--body-text-color-subdued); }
+.block-help .bh-ph { margin-top: 6px; font-size: 12.5px; color: var(--body-text-color-subdued); }
+.block-help ul { margin: 4px 0 0; padding-left: 18px; }
+.block-help code, .rules-intro code { font-size: 12px; padding: 0 4px; border-radius: 4px;
+  background: var(--background-fill-secondary); color: var(--body-text-color); }
+#stale-overlay { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: 16px;
+  background: rgba(15, 23, 42, .55); backdrop-filter: blur(2px); }
+#stale-overlay .stale-card { max-width: 420px; padding: 22px 24px; border-radius: 14px;
+  background: #ffffff; color: #0f172a; border: 1px solid #e2e8f0; box-shadow: 0 20px 50px rgba(0, 0, 0, .25); }
+.dark #stale-overlay .stale-card { background: #111827; color: #f1f5f9; border-color: #334155; }
+#stale-overlay b { font-size: 16px; }
+#stale-overlay p { margin: 8px 0 16px; font-size: 13.5px; line-height: 1.55; color: var(--body-text-color-subdued); }
+#stale-overlay button { width: 100%; padding: 10px; border: 0; border-radius: 8px; cursor: pointer;
+  font-weight: 600; color: #fff; background: var(--button-primary-background-fill); }
+#stale-overlay button:hover { background: var(--button-primary-background-fill-hover); }
 button.copied { background: #059669 !important; border-color: #059669 !important; color: #fff !important; }
 .sub-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap;
   font-weight: 600; font-size: 13.5px; margin-top: 6px; padding-top: 10px;
@@ -250,6 +296,65 @@ def meta_html(chips: list[str], warnings: list[str] | None = None) -> str:
 
 def empty_html(text: str) -> str:
     return f'<div class="empty">{html.escape(text)}</div>'
+
+
+_KIND_LABELS = {
+    "instruction": ("Chỉ dẫn cho AI", "gửi cho AI làm đề bài — không nằm trong prompt"),
+    "default": ("Giá trị mặc định", "dùng khi bối cảnh không nói rõ"),
+    "template": ("Mẫu câu trong prompt", "ghép nguyên văn vào prompt cuối"),
+}
+
+
+def block_help_html(spec, placeholder_help: dict[str, str]) -> str:
+    """Giải thích một đoạn quy tắc cho người không đọc code: dùng vào việc gì, ô {…} nào được điền gì."""
+    kind, kind_note = _KIND_LABELS.get(spec.kind, _KIND_LABELS["template"])
+    pills = f'<span class="bh-pill bh-{spec.kind}">{kind}</span><span class="bh-sub">{kind_note}</span>'
+    if spec.invariant:
+        pills += '<span class="bh-pill bh-lock">🔒 Bất biến</span>'
+    parts = [f'<div class="bh-head">{pills}</div>']
+    if spec.purpose:
+        parts.append(f"<p>{html.escape(spec.purpose)}</p>")
+    if spec.invariant:
+        parts.append('<p class="bh-note">Luôn nằm nguyên văn trong prompt; Ghi chú tuỳ chỉnh không ghi đè được. '
+                     "Sửa được, nhưng phải giữ đúng ý.</p>")
+    names = sorted(spec.allowed, key=lambda n: (n not in spec.required, n))
+    if names:
+        rows = "".join(
+            f"<li><code>{{{n}}}</code>{' <b>bắt buộc</b>' if n in spec.required else ''}"
+            f" — {html.escape(placeholder_help.get(n, ''))}</li>" for n in names)
+        parts.append('<div class="bh-ph">Ô tự điền — giữ nguyên dấu <code>{…}</code>, tool tự thay khi tạo prompt:'
+                     f"<ul>{rows}</ul></div>")
+    elif spec.kind == "template":
+        parts.append('<p class="bh-note">Không có ô tự điền: viết sao, prompt ra vậy.</p>')
+    return f'<div class="block-help">{"".join(parts)}</div>'
+
+
+def rules_intro_html() -> str:
+    return """<div class="rules-intro-body">
+<p>Quy tắc là bộ câu <b>tiếng Anh</b> tool dùng để dựng prompt. Có 3 loại:</p>
+<div class="ri-grid">
+  <div><span class="bh-pill bh-instruction">Chỉ dẫn cho AI</span>
+    <p>Đề bài gửi cho AI: cách vẽ lại hình thêu từ ảnh ý tưởng, cách đọc ảnh nền.
+    Sửa để đổi <i>cách AI nghĩ</i>. Không nằm trong prompt.</p></div>
+  <div><span class="bh-pill bh-template">Mẫu câu trong prompt</span>
+    <p>Khung 4 đoạn của prompt và các câu kỹ thuật thêu. Ghép nguyên văn vào prompt;
+    chỗ <code>{…}</code> tool tự điền (màu áo, loại áo, màu chỉ…).</p></div>
+  <div><span class="bh-pill bh-default">Giá trị mặc định</span>
+    <p>Góc máy, ánh sáng, cách đặt áo — chỉ dùng khi concept nền / ảnh nền không nói rõ.</p></div>
+</div>
+<ul>
+  <li>🔒 <b>Bất biến</b> (vải kéo căng, độ nổi sợi chỉ, chống hình in): luôn có trong prompt, Ghi chú tuỳ chỉnh không
+    ghi đè được.</li>
+  <li>Khi lưu, tool kiểm tra: 100% tiếng Anh, không để trống, đủ các ô <code>{…}</code> bắt buộc. Sai thì không lưu và
+    báo rõ chỗ sai.</li>
+  <li>Mỗi lần lưu tạo <b>phiên bản mới</b>. Prompt tạo sau đó dùng bản mới; prompt cũ vẫn ghi đã dùng bản nào.
+    <b>Khôi phục</b> = chép bản cũ thành bản mới nhất, không xoá gì.</li>
+  <li>Loại áo, bảng màu áo (mã hex), vị trí thêu, concept nền, tỷ lệ khung: sửa ở mục <i>JSON nâng cao</i> cuối cột
+    phải.</li>
+  <li>Thứ tự ưu tiên khi dựng prompt: Ghi chú tuỳ chỉnh › lựa chọn trên form › ảnh nền / concept nền ›
+    mẫu đã duyệt › mặc định trong quy tắc.</li>
+</ul>
+</div>"""
 
 
 def guide_html() -> str:

@@ -23,42 +23,107 @@ class EmbroideryCategory(Category):
     techniques = ("satin", "tatami", "running")
     placement_placeholders = frozenset({"color_name"})
     block_specs = {
-        "design_instruction": BlockSpec("Chỉ dẫn cho model khi viết thiết kế (đoạn 3)"),
-        "scene_instruction": BlockSpec("Chỉ dẫn cho model khi đọc ảnh nền Custom"),
-        "default_camera": BlockSpec("Góc máy mặc định"),
-        "default_lighting": BlockSpec("Ánh sáng mặc định"),
-        "default_arrangement": BlockSpec("Cách đặt áo mặc định"),
+        "design_instruction": BlockSpec(
+            "Chỉ dẫn cho AI khi vẽ lại thiết kế", kind="instruction",
+            purpose="Gửi cho AI cùng ảnh ý tưởng. Quyết định AI vẽ lại hình thêu thế nào: phong cách, độ đơn giản, "
+                    "số màu chỉ, cách gộp 2 ý tưởng. Kết quả thành đoạn 3 của prompt.",
+        ),
+        "scene_instruction": BlockSpec(
+            "Chỉ dẫn cho AI khi đọc ảnh nền", kind="instruction",
+            purpose="Gửi cho AI khi bạn tải “Ảnh nền mới”. Quyết định AI mô tả bối cảnh trong ảnh ra sao "
+                    "(góc máy, bề mặt, đạo cụ, ánh sáng) để đưa vào đoạn 1.",
+        ),
+        "default_camera": BlockSpec(
+            "Góc máy mặc định", kind="default",
+            purpose="Dùng khi concept nền / ảnh nền không nói góc máy. Điền vào chỗ {camera} của đoạn 1.",
+        ),
+        "default_lighting": BlockSpec(
+            "Ánh sáng mặc định", kind="default",
+            purpose="Dùng khi concept nền / ảnh nền không nói ánh sáng. Điền vào chỗ {lighting} của đoạn 1.",
+        ),
+        "default_arrangement": BlockSpec(
+            "Cách đặt áo mặc định", kind="default",
+            purpose="Dùng khi concept nền / ảnh nền không nói cách đặt áo (gấp, trải phẳng…). "
+                    "Điền vào chỗ {arrangement} của đoạn 1.",
+        ),
         "para1": BlockSpec(
-            "Đoạn 1 — góc máy, áo, bề mặt, đạo cụ, ánh sáng",
+            "Đoạn 1 — bối cảnh chụp",
             allowed=_GARMENT | {"camera", "arrangement", "surface", "props", "lighting", "extra", "aspect_ratio"},
             required=frozenset({"camera", "garment", "color", "surface", "props", "lighting", "extra"}),
+            purpose="Mẫu câu của đoạn 1 trong prompt: góc máy, áo nằm trên bề mặt nào, đạo cụ, ánh sáng, tỷ lệ khung.",
         ),
         "para2": BlockSpec(
-            "Đoạn 2 — chất liệu, khung hình, kéo căng vải",
+            "Đoạn 2 — chất liệu áo",
             allowed=_GARMENT | {"puckering"},
             required=frozenset({"garment", "puckering"}),
+            purpose="Mẫu câu của đoạn 2: chất liệu vải, khung hình, và hiệu ứng vải bị kéo căng quanh hình thêu.",
         ),
-        "puckering": BlockSpec("Hiệu ứng kéo căng vải (bất biến)", invariant=True),
+        "puckering": BlockSpec(
+            "Hiệu ứng kéo căng vải", invariant=True,
+            purpose="Câu mô tả vải hơi nhăn, lõm quanh đường thêu — dấu hiệu của thêu thật. Chèn vào đoạn 2.",
+        ),
         "para3_intro": BlockSpec(
-            "Đoạn 3 — dòng mở đầu ép tỷ lệ",
+            "Đoạn 3 — câu mở đầu thiết kế",
             allowed=_GARMENT | {"motif", "placement_clause"},
             required=frozenset({"motif", "placement_clause"}),
+            purpose="Câu đầu đoạn 3: hình thêu là gì, đặt ở đâu và nhỏ cỡ nào trên áo. "
+                    "Sau câu này là các gạch đầu dòng do AI viết.",
         ),
         "para3_palette": BlockSpec(
-            "Đoạn 3 — dòng Palette & Style",
+            "Đoạn 3 — dòng màu chỉ",
             allowed=frozenset({"threads", "thread_count"}),
             required=frozenset({"threads"}),
+            purpose="Dòng cuối đoạn 3: liệt kê màu chỉ và phong cách màu (màu đặc, không chuyển sắc).",
         ),
         "para4": BlockSpec(
-            "Đoạn 4 — kỹ thuật mũi thêu và tổng kết",
+            "Đoạn 4 — kỹ thuật thêu và chốt",
             allowed=_GARMENT | {"technique_sentences", "thread_physics", "anti_print"},
             required=frozenset({"technique_sentences", "thread_physics", "anti_print"}),
+            purpose="Mẫu câu của đoạn 4: các câu kỹ thuật mũi thêu, độ nổi của sợi chỉ, "
+                    "và câu khẳng định đây là thêu thật chứ không phải in.",
         ),
-        "satin_sentence": BlockSpec("Câu satin", allowed=frozenset({"parts"}), required=frozenset({"parts"})),
-        "tatami_sentence": BlockSpec("Câu tatami", allowed=frozenset({"parts"}), required=frozenset({"parts"})),
-        "running_sentence": BlockSpec("Câu running stitch", allowed=frozenset({"parts"}), required=frozenset({"parts"})),
-        "thread_physics": BlockSpec("Vật lý sợi chỉ + độ nổi 3D (bất biến)", invariant=True),
-        "anti_print": BlockSpec("Mệnh đề chống hình in (bất biến)", invariant=True),
+        "satin_sentence": BlockSpec(
+            "Câu mũi satin", allowed=frozenset({"parts"}), required=frozenset({"parts"}),
+            purpose="Chỉ xuất hiện khi thiết kế có phần thêu satin (thường là chữ, viền). Ghép vào đoạn 4.",
+        ),
+        "tatami_sentence": BlockSpec(
+            "Câu mũi tatami", allowed=frozenset({"parts"}), required=frozenset({"parts"}),
+            purpose="Chỉ xuất hiện khi thiết kế có mảng lớn thêu tatami (lấp đầy). Ghép vào đoạn 4.",
+        ),
+        "running_sentence": BlockSpec(
+            "Câu mũi chạy (running stitch)", allowed=frozenset({"parts"}), required=frozenset({"parts"}),
+            purpose="Chỉ xuất hiện khi thiết kế có nét mảnh thêu running stitch. Ghép vào đoạn 4.",
+        ),
+        "thread_physics": BlockSpec(
+            "Độ bóng và độ nổi của sợi chỉ", invariant=True,
+            purpose="Câu mô tả sợi chỉ bóng, nổi 3D trên vải. Chèn vào đoạn 4.",
+        ),
+        "anti_print": BlockSpec(
+            "Câu chống ra hình in", invariant=True,
+            purpose="Câu cấm in lụa / DTG / vector phẳng, để ảnh ra phải trông như thêu thật. Chèn vào đoạn 4.",
+        ),
+    }
+    placeholder_help = {
+        "garment": "tên loại áo (vd. Gildan 18000 crewneck sweatshirt)",
+        "material": "chất liệu của loại áo",
+        "color": "màu áo kèm mã hex, vd. Maroon (#5b2333)",
+        "color_name": "tên màu áo, vd. Maroon",
+        "camera": "góc máy — từ concept nền / ảnh nền, thiếu thì lấy “Góc máy mặc định”",
+        "arrangement": "cách đặt áo — từ concept nền / ảnh nền, thiếu thì lấy mặc định",
+        "surface": "bề mặt đặt áo — từ concept nền / ảnh nền",
+        "props": "đạo cụ xung quanh — từ concept nền / ảnh nền",
+        "lighting": "ánh sáng — từ concept nền / ảnh nền, thiếu thì lấy mặc định",
+        "extra": "yêu cầu thêm về bối cảnh từ Ghi chú tuỳ chỉnh (trống nếu không có)",
+        "aspect_ratio": "tỷ lệ khung đã chọn, vd. 4:5",
+        "puckering": "nguyên văn đoạn “Hiệu ứng kéo căng vải”",
+        "motif": "tóm tắt hình thêu do AI viết",
+        "placement_clause": "câu mô tả vị trí thêu (giữa ngực / ngực trái)",
+        "threads": "danh sách màu chỉ, vd. Cream, Navy and Rust",
+        "thread_count": "số màu chỉ",
+        "technique_sentences": "các câu mũi satin / tatami / running mà thiết kế có dùng",
+        "thread_physics": "nguyên văn đoạn “Độ bóng và độ nổi của sợi chỉ”",
+        "anti_print": "nguyên văn đoạn “Câu chống ra hình in”",
+        "parts": "các phần của thiết kế dùng mũi này, vd. the \"GOOD DAYS\" lettering",
     }
 
     def seed_rules(self) -> CategoryRules:

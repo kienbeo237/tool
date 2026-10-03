@@ -12,8 +12,8 @@ from mockup_tool.config import Settings
 from mockup_tool.engine.gemini_client import ModelError
 from mockup_tool.engine.image_engines import GEMINI
 from mockup_tool.engine.service import BatchItem, GenerateInput, MockupService, UserError
-from mockup_tool.ui.theme import (card_header, empty_html, guide_html, header_html, meta_html, status_html,
-                                  swatch_css)
+from mockup_tool.ui.theme import (block_help_html, card_header, empty_html, guide_html, header_html, meta_html,
+                                  rules_intro_html, status_html, swatch_css)
 
 log = logging.getLogger(__name__)
 
@@ -67,12 +67,45 @@ JS_OPEN_CHATGPT = _js_open_chat("chatgpt-btn", CHATGPT_URL, True, "Đã mở Cha
 JS_OPEN_GEMINI = _js_open_chat("gemini-btn", GEMINI_URL, False, "Đã copy · Ctrl+V vào Gemini")
 
 # Ctrl/⌘ + Enter ở bất cứ đâu trong tab Tạo prompt = bấm Tạo prompt.
+# Trang mở từ trước khi server khởi động lại (deploy) vẫn chạy bản giao diện cũ: mọi nút gọi
+# sai hàm/mất phiên và Gradio phủ "Error" khắp nơi. app_id của Gradio đổi mỗi lần khởi động →
+# so với id lúc tải trang; khác thì chặn trang bằng hộp mời tải lại.
 HEAD = """<script>
 document.addEventListener('keydown', (e) => {
   if (!(e.ctrlKey || e.metaKey) || e.key !== 'Enter') return;
   const btn = document.querySelector('#generate-btn');
   if (btn && btn.offsetParent !== null && !btn.disabled) { e.preventDefault(); btn.click(); }
 });
+(() => {
+  let mine = null, stale = false;
+  async function check() {
+    if (stale || document.hidden) return;
+    try {
+      const r = await fetch('gradio_api/app_id', {cache: 'no-store'});
+      if (!r.ok) return;  // đang deploy (502) — lần sau kiểm tra lại
+      const id = Number((await r.json()).app_id);
+      if (mine === null) mine = Number(window.gradio_config?.app_id ?? id);
+      if (id !== mine) show();
+    } catch (e) { /* mất mạng tạm thời: bỏ qua */ }
+  }
+  function show() {
+    stale = true;
+    const box = document.createElement('div');
+    box.id = 'stale-overlay';
+    box.setAttribute('role', 'alertdialog'); box.setAttribute('aria-modal', 'true');
+    box.innerHTML = '<div class="stale-card"><b>Tool vừa được cập nhật</b>'
+      + '<p>Trang này vẫn đang chạy bản cũ nên các nút sẽ báo lỗi. Tải lại để dùng bản mới — '
+      + 'prompt đã tạo vẫn nằm trong tab Lịch sử, lựa chọn của bạn được giữ nguyên.</p>'
+      + '<button type="button">Tải lại trang</button></div>';
+    box.querySelector('button').onclick = () => location.reload();
+    document.body.appendChild(box);
+    box.querySelector('button').focus();
+  }
+  document.addEventListener('visibilitychange', check);
+  window.addEventListener('focus', check);
+  setInterval(check, 30000);
+  setTimeout(check, 3000);
+})();
 </script>"""
 
 
@@ -90,7 +123,7 @@ def _guard(fn):
             raise
         except Exception as e:
             log.exception("Lỗi không lường trước trong %s", fn.__name__)
-            raise gr.Error(f"Lỗi hệ thống: {e}", duration=None) from e
+            raise gr.Error(f"Lỗi hệ thống: {e} — xem log server để biết chi tiết.", duration=None) from e
     return wrapper
 
 
@@ -103,7 +136,7 @@ def _guard_gen(fn):
             raise gr.Error(str(e), duration=None, print_exception=False) from e
         except Exception as e:
             log.exception("Lỗi không lường trước trong %s", fn.__name__)
-            raise gr.Error(f"Lỗi hệ thống: {e}", duration=None) from e
+            raise gr.Error(f"Lỗi hệ thống: {e} — xem log server để biết chi tiết.", duration=None) from e
     return wrapper
 
 
@@ -159,6 +192,10 @@ def _always(event, fn, inputs, outputs, js=None):
     event.failure(fn, inputs, outputs, queue=False)
 
 
+def _block_choice(spec) -> str:
+    return f"{spec.label}{' 🔒' if spec.invariant else ''}"
+
+
 def _pick(value, choices, default):
     keys = [c[1] if isinstance(c, (tuple, list)) else c for c in choices]
     return value if value in keys else default
@@ -204,7 +241,7 @@ def build_app(service: MockupService, settings: Settings) -> gr.Blocks:
 
     def rules_view(cat):
         version, rules = service.active_rules(cat)
-        spec_choices = [(f"{s.label}  ·  {k}", k) for k, s in service.category(cat).block_specs.items()]
+        spec_choices = [(_block_choice(s), k) for k, s in service.category(cat).block_specs.items()]
         history = [[h["version"], _fmt_time(h["created_at"]), h["note"]] for h in service.rule_history(cat)]
         first = spec_choices[0][1]
         info = meta_html([f"Đang dùng <b>phiên bản {version}</b>", f"{len(history)} phiên bản đã lưu"])
@@ -214,15 +251,10 @@ def build_app(service: MockupService, settings: Settings) -> gr.Blocks:
     def block_view(cat, key):
         if not key:
             return "", ""
-        spec = service.category(cat).block_specs[key]
+        category = service.category(cat)
+        spec = category.block_specs[key]
         _, rules = service.active_rules(cat)
-        lines = []
-        if spec.invariant:
-            lines.append("🔒 **Bất biến** — luôn có mặt nguyên văn trong prompt; Custom Note không ghi đè được.")
-        lines.append("Placeholder được dùng: " + (", ".join(f"`{{{p}}}`" for p in sorted(spec.allowed)) or "_không có_"))
-        if spec.required:
-            lines.append("Bắt buộc có: " + ", ".join(f"`{{{p}}}`" for p in sorted(spec.required)))
-        return "\n\n".join(lines), rules.blocks.get(key, "")
+        return block_help_html(spec, category.placeholder_help), rules.blocks.get(key, "")
 
     init_info, init_block, init_help, init_text, init_json, init_history = rules_view(default_category)
 
@@ -440,6 +472,8 @@ def build_app(service: MockupService, settings: Settings) -> gr.Blocks:
 
             # ================================================================ QUY TẮC
             with gr.Tab("Quy tắc", id="rules"):
+                with gr.Accordion("Quy tắc là gì? Sửa thế nào cho đúng", open=True, elem_classes="rules-intro"):
+                    gr.HTML(rules_intro_html())
                 with gr.Row(equal_height=False):
                     with gr.Column(scale=4, variant="panel", elem_classes="card"):
                         _card(None, "Phiên bản", "mỗi lần lưu tạo một phiên bản mới")
@@ -459,7 +493,7 @@ def build_app(service: MockupService, settings: Settings) -> gr.Blocks:
                         _card(None, "Sửa quy tắc", "100% tiếng Anh")
                         block_key = gr.Dropdown(label="Đoạn quy tắc", choices=init_block["choices"],
                                                 value=init_block["value"])
-                        block_help = gr.Markdown(init_help)
+                        block_help = gr.HTML(init_help)
                         block_text = gr.Textbox(show_label=False, lines=10, value=init_text)
                         with gr.Row(equal_height=True):
                             block_note = gr.Textbox(show_label=False, placeholder="Ghi chú thay đổi (vd: tăng độ nổi chỉ)",

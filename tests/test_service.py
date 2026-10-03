@@ -68,7 +68,7 @@ def test_approve_flags_edits_and_invariant_warnings(service, base_input):
     src = service.generate(base_input())
     broken = src.prompt.replace(service.active_rules("embroidered_apparel")[1].blocks["anti_print"], "")
     example_id, warnings = service.approve(src.request_id, broken, canonical=True, note="x")
-    assert any("chống hình in" in w for w in warnings)
+    assert any("chống ra hình in" in w for w in warnings)
     ex = service.get_approved(example_id)
     assert ex["is_canonical"] and ex["design_text"].startswith("The embroidered design is")
     assert service.get_request(src.request_id)["text_edited"] is True

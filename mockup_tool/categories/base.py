@@ -95,6 +95,10 @@ class BlockSpec:
     required: frozenset[str] = frozenset()
     # Bất biến: text của block phải xuất hiện nguyên văn trong prompt cuối (mục 6.2).
     invariant: bool = False
+    # Hiện ở tab Quy tắc: block này dùng vào việc gì (tiếng Việt, cho người không đọc code).
+    purpose: str = ""
+    # instruction: gửi cho AI làm chỉ dẫn | default: giá trị mặc định | template: mẫu câu ghép vào prompt
+    kind: str = "template"
 
 
 @dataclass(frozen=True)
@@ -113,6 +117,8 @@ class Category:
     block_specs: ClassVar[dict[str, BlockSpec]]
     # Placeholder được phép trong phrase của từng placement.
     placement_placeholders: ClassVar[frozenset[str]] = frozenset()
+    # Nghĩa của từng {placeholder}, hiện ở tab Quy tắc.
+    placeholder_help: ClassVar[dict[str, str]] = {}
 
     def seed_rules(self) -> CategoryRules:
         raise NotImplementedError
@@ -154,9 +160,9 @@ class Category:
         for key, spec in self.block_specs.items():
             text = rules.blocks.get(key, "")
             if not text.strip():
-                errors.append(f"Block '{key}' ({spec.label}) không được để trống")
+                errors.append(f"“{spec.label}” [{key}] không được để trống")
                 continue
-            errors += _check_template(f"Block '{key}'", text, spec.allowed, spec.required)
+            errors += _check_template(f"“{spec.label}” [{key}]", text, spec.allowed, spec.required)
         unknown = set(rules.blocks) - set(self.block_specs)
         if unknown:
             errors.append(f"Block không thuộc danh mục này: {sorted(unknown)}")
@@ -185,8 +191,11 @@ def _check_template(where: str, text: str, allowed: frozenset[str], required: fr
         return errors + [f"{where}: {e}. Muốn viết dấu ngoặc nhọn thật thì gõ {{{{ }}}}"]
     unknown = names - allowed
     if unknown:
-        errors.append(f"{where}: placeholder không được phép {sorted(unknown)}; được dùng {sorted(allowed) or 'không có'}")
+        allowed_text = ", ".join("{%s}" % a for a in sorted(allowed)) or "không có ô nào"
+        errors.append(f"{where}: có ô tự điền không hợp lệ {', '.join('{%s}' % u for u in sorted(unknown))} — "
+                      f"đoạn này chỉ dùng được: {allowed_text}")
     missing = required - names
     if missing:
-        errors.append(f"{where}: thiếu placeholder bắt buộc {sorted('{%s}' % m for m in missing)}")
+        errors.append(f"{where}: thiếu ô tự điền bắt buộc {', '.join('{%s}' % m for m in sorted(missing))} "
+                      "— giữ nguyên các ô này khi sửa")
     return errors
